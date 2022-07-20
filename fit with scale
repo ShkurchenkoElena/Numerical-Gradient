@@ -1,0 +1,65 @@
+QMatrix4x4 Optimization::RigidAlignmentProblem::transformationMatrixFromVars(const QVector<double> &variables)
+{
+    const int nVars = variables.size();
+    Q_ASSERT(nVars == 7);
+    const double rotationScale = 10;
+    QMatrix4x4 transformation;
+
+    const QVector3D translation(variables[0], variables[1], variables[2]);
+    transformation.translate(translation);
+
+    transformation.rotate(rotationScale * variables[3], QVector3D(1, 0, 0));
+    transformation.rotate(rotationScale * variables[4], QVector3D(0, 1, 0));
+    transformation.rotate(rotationScale * variables[5], QVector3D(0, 0, 1));
+
+    transformation.scale(variables[6]*0.5);
+
+    return transformation;
+}
+
+
+
+
+
+
+void MainWindow::performFitting()
+{
+    if(m_drawableMeshBase == nullptr || m_drawableMeshTarget == nullptr)
+        return;
+
+    m_objDataRes = m_objDataBase;
+
+    const auto stepFunc = [&](const QVector<double> &vars){
+        const QMatrix4x4 transformation = Optimization::RigidAlignmentProblem::transformationMatrixFromVars(vars);
+        for(int i = 0; i < m_objDataRes.m_vertices.size(); ++i)
+            m_objDataRes.m_vertices[i] = transformation * m_objDataBase.m_vertices[i];
+
+        QVector<int> polygonVertexIndices = MeshTools::buildPolygonVertexIndicesVector(m_objDataRes.m_polygonVertexIndices);
+        QVector<int> polygonNormalIndices = MeshTools::buildPolygonVertexIndicesVector(m_objDataRes.m_polygonNormalIndices);
+        QVector<int> polygonStart = MeshTools::buildPolygonStartVector(m_objDataRes.m_polygonVertexIndices);
+        m_viewport->makeCurrent();
+        if (m_drawableMeshBase) {
+            m_viewport->removeObject(m_drawableMeshBase);
+            delete m_drawableMeshBase;
+        }
+        m_drawableMeshBase = new DrawableMesh(m_objDataRes.m_vertices, polygonVertexIndices, polygonStart, m_objDataRes.m_normals, polygonNormalIndices);
+        m_viewport->addObject(m_drawableMeshBase);
+        m_viewport->update();
+        QApplication::processEvents();
+        QThread::msleep(5);
+    };
+    Optimization::RigidAlignmentProblem problem(m_objDataBase.m_vertices, m_objDataTarget.m_vertices);
+
+    Optimization::LambdaStepCallback callback(stepFunc);
+
+    const QVector<double> initialVars = {0, 0, 0, 0, 0, 0,1};
+    const double stepLength = 0.8;
+    const int nMaxIterations = 3000;
+    const double gradientNormThreshold = 1e-5;
+
+    const QVector<double> resTranslation = Optimization::gradientDescent(
+                problem, initialVars,
+                stepLength, nMaxIterations, gradientNormThreshold,
+                true, &callback);
+    qDebug() << "Estimated transformation" << resTranslation;
+}
