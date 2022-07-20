@@ -1,5 +1,5 @@
 void MainWindow::load(QStringList fileNames){
-
+    m_base.resize(fileNames.size());
     QString errorMsg;
     for(int i=0;i<fileNames.size();i++){
         if (!ObjReadingTools::read(fileNames[i], m_base[i], errorMsg, m_progressNotifier)) {    //m_base-базис из блендшейпов
@@ -17,7 +17,7 @@ void MainWindow::blendshapeBasedFit()
         return;
 
     m_objDataRes = m_objDataBase;
-    m_base.resize(11);
+    
     load({вектор из блендшейпов});
 
     const int optNMaxSteps = 50;
@@ -28,11 +28,11 @@ void MainWindow::blendshapeBasedFit()
     const Eigen::MatrixXd targetVerticesEigen = EigenTools::matrixXdFromQVectors3D(m_objDataTarget.m_vertices);
 
     QVector<Eigen::MatrixXd> blendshapesEigen(11);
-    for(int i=0;i<11;i++)
+    for(int i=0;i<m_base.size();i++)
         blendshapesEigen[i]=EigenTools::matrixXdFromQVectors3D(m_base[i].m_vertices);
 
     QVector<Eigen::MatrixXd> delta(11);
-    for(int i=0;i<11;i++)
+    for(int i=0;i<m_base.size();i++)
         delta[i]=blendshapesEigen[i]-baseVerticesEigen;
     Eigen::MatrixXd sumD=Eigen::MatrixXd::Zero(baseVerticesEigen.rows(),baseVerticesEigen.cols());
 
@@ -42,7 +42,7 @@ void MainWindow::blendshapeBasedFit()
 
     const auto stepFunc = [&](const Eigen::MatrixXd &vars){
 
-        for(int i=0;i<11;i++)
+        for(int i=0;i<m_base.size();i++)
             sumD+=delta[i]*vars(i+6);
 
         const Eigen::MatrixXd newVerticesEigen = problem.transformedVerticesFromVars(vars,baseVerticesEigen+sumD);
