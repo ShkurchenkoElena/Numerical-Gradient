@@ -1,0 +1,60 @@
+void MainWindow::load(QStringList fileNames){
+
+    QString errorMsg;
+    for(int i=0;i<fileNames.size();i++){
+        if (!ObjReadingTools::read(fileNames[i], m_base[i], errorMsg, m_progressNotifier)) {    //m_base-базис из блендшейпов
+        QMessageBox::warning(this, "Failed to load mesh", errorMsg);
+            return;
+        }
+    }
+
+}
+
+
+void MainWindow::blendshapeBasedFit()
+{
+    if(m_drawableMeshBase == nullptr || m_drawableMeshTarget == nullptr)
+        return;
+
+    m_objDataRes = m_objDataBase;
+    m_base.resize(11);
+    load({вектор из блендшейпов});
+
+    const int optNMaxSteps = 50;
+    const double minGradNorm = 1e-8;
+    const double dampingConstant = 0;
+
+    const Eigen::MatrixXd baseVerticesEigen = EigenTools::matrixXdFromQVectors3D(m_objDataBase.m_vertices);
+    const Eigen::MatrixXd targetVerticesEigen = EigenTools::matrixXdFromQVectors3D(m_objDataTarget.m_vertices);
+
+    QVector<Eigen::MatrixXd> blendshapesEigen(11);
+    for(int i=0;i<11;i++)
+        blendshapesEigen[i]=EigenTools::matrixXdFromQVectors3D(m_base[i].m_vertices);
+
+    QVector<Eigen::MatrixXd> delta(11);
+    for(int i=0;i<11;i++)
+        delta[i]=blendshapesEigen[i]-baseVerticesEigen;
+    Eigen::MatrixXd sumD=Eigen::MatrixXd::Zero(baseVerticesEigen.rows(),baseVerticesEigen.cols());
+
+
+
+    EigenAlignmentProblems::RigidAlignmentGNProblem problem(baseVerticesEigen, targetVerticesEigen);
+
+    const auto stepFunc = [&](const Eigen::MatrixXd &vars){
+
+        for(int i=0;i<11;i++)
+            sumD+=delta[i]*vars(i+6);
+
+        const Eigen::MatrixXd newVerticesEigen = problem.transformedVerticesFromVars(vars,baseVerticesEigen+sumD);
+        const QVector<QVector3D> newVertices = EigenTools::qVectors3DFromMatrixXd(newVerticesEigen);
+        m_objDataRes.m_vertices = newVertices;
+        fillDrawableMeshFromObjData(m_objDataRes, m_drawableMeshBase, m_viewport, {0, 0, 1});
+
+        QApplication::processEvents();
+
+    };
+
+    EigenOptimization::LambdaStepCallback stepCallback(stepFunc);
+
+    EigenOptimization::gaussNewton(problem, EigenTools::vectorXd({0, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0,0,0}), optNMaxSteps, minGradNorm, dampingConstant, true, &stepCallback);
+}
