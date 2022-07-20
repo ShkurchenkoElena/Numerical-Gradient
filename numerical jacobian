@@ -1,0 +1,28 @@
+template<typename Function>
+void EigenOptimization::Utils::numericalJacobian(
+        Function function,
+        const Eigen::VectorXd &vars,
+        const double dx,
+        Eigen::MatrixXd &outJacobian)
+{
+     Eigen::VectorXd varsPlus=vars;
+     Eigen::VectorXd varsMinus=vars;
+     Eigen::VectorXd residuals(0);
+     function(vars,residuals);
+     Eigen::MatrixXd jacobian(residuals.size(),vars.size());
+    for(int j=0;j<residuals.size();j++){
+     for(int i=0;i<vars.size();i++){
+         varsPlus[i]+=dx;
+         varsMinus[i]-=dx;
+         function(varsPlus,residuals);
+         Eigen::VectorXd resPlus=residuals;
+         function(varsMinus,residuals);
+         Eigen::VectorXd resMinus=residuals;
+         jacobian(j,i)=(resPlus[j]-resMinus[j])/(2*dx);
+         varsPlus[i]-=dx;
+         varsMinus[i]+=dx;
+     }
+    }
+    outJacobian=jacobian;
+    outJacobian.transpose();
+}
