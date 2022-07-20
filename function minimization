@@ -1,0 +1,19 @@
+void Optimization::Tests::OptimizationTests::testGradientDescent08()
+{
+    const auto errorFunc = [](const QVector<double> &vars) -> double {
+        Q_ASSERT(vars.size() == 2);
+        return vars[0] * vars[0] + 1.5*vars[1] * vars[1] - 0.5 * vars[0] * vars[1] + 10 * vars[0]-5;
+    };
+
+    const auto gradientFunc = [=](const QVector<double> &vars) -> QVector<double> {
+        return numericalGradient(errorFunc, vars, 1e-8);
+    };
+    Optimization::LambdaProblem problem(errorFunc, gradientFunc);
+
+    const QVector<double> initialVars = {-6, -3};
+    const QVector<double> res = Optimization::gradientDescent(problem, initialVars, 1e-1, 100, 1e-7, false);
+
+    QCOMPARE(2, res.size());
+    QVERIFY(std::abs(res[0] + 5.21739) < epsilonWeak);
+    QVERIFY(std::abs(res[1] + 0.86956) < epsilonWeak);
+}
