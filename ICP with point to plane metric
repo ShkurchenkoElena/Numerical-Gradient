@@ -1,0 +1,52 @@
+QVector<QVector3D> Registration::RigidFitter::fit(
+        const QVector<int> &verticesToFitIndices,
+        const QVector<QVector3D> &verticesToFit,
+        const double fitWeight,
+        const QVector<QVector3D> &targetNormals,
+        StepCallback *callback)
+{
+    const float rescaleConstant = normalizationDiagonal / m_baseBboxDiagonal;
+    const auto errorFunc = [&](const QVector<double> &vars) -> double {
+        const QMatrix4x4 transformation = transformationMatrixFromVars(vars);
+
+        const int nVerticesToFit = verticesToFitIndices.size();
+        double resError = 0;
+
+        for(int i = 0; i < nVerticesToFit; ++i){
+
+            const int index = verticesToFitIndices[i];
+            const QVector3D newVertex = transformation * m_baseVertices[index];
+           
+           resError+=pow(QVector3D::dotProduct(newVertex * rescaleConstant - verticesToFit[i] * rescaleConstant,targetNormals[i]),2);
+        }
+
+        return fitWeight * resError;
+    };
+
+    const auto gradientFunc = [&](const QVector<double> &vars) -> QVector<double> {
+        return Optimization::numericalGradient(errorFunc, vars, 1e-3);
+    };
+    Optimization::LambdaProblem problem(errorFunc, gradientFunc);
+
+    const auto optimizationCallbackFunc = [&](const QVector<double> &vars){
+        if(callback == nullptr)
+            return ;
+        const QMatrix4x4 transformation = transformationMatrixFromVars(vars);
+        const QVector<QVector3D> vertices = GeomTools::transformVertices3D(
+                    transformation, m_baseVertices);
+        callback->call(vertices);
+    };
+    Optimization::LambdaStepCallback optimizationCallback(optimizationCallbackFunc);
+
+    const int nLineSearchIterations = 10;
+    const double stepLengthMax = 10;
+    m_variableValues = Optimization::gradientDescentWithBackTrackingLineSearch(
+                problem, m_variableValues,
+                m_optimizationStepLength, m_optimizationNMaxSteps, m_gradThreshold, nLineSearchIterations, stepLengthMax, m_verboseOptimization,
+                &optimizationCallback, &m_optimizationStepLength);
+
+    const QMatrix4x4 transformation = transformationMatrixFromVars(m_variableValues);
+    const QVector<QVector3D> vertices = GeomTools::transformVertices3D(
+                transformation, m_baseVertices);
+    return vertices;
+}
