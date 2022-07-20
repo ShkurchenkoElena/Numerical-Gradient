@@ -1,0 +1,47 @@
+Eigen::VectorXd EigenOptimization::gaussNewton(
+        GaussNewtonProblem &problem,
+        const Eigen::VectorXd &initialVariables,
+        const int nMaxIterations,
+        const double minGradNorm,
+        const double dampingConstant,
+        const bool verbose,
+        StepCallback *callback)
+{
+
+    Eigen::VectorXd variables = initialVariables;
+
+    Eigen::VectorXd gradient;
+    Eigen::MatrixXd jac;
+    Eigen::MatrixXd hess;
+     Eigen::VectorXd res;
+
+    for(int iterInd = 0; iterInd < nMaxIterations; ++iterInd){
+
+
+        problem.jacobian(variables,jac);
+        problem.residuals(variables,res);
+        gradient=jac.transpose()*res;
+        hess=jac.transpose()*jac+Eigen::MatrixXd::Identity(variables.size(),variables.size())*dampingConstant;
+        const double gradNorm = gradient.norm();
+
+        if(verbose){
+            qDebug()
+                    << "iter" << iterInd + 1 << "/" << nMaxIterations
+
+                    << "gradNorm" << gradNorm;
+        }
+        if(gradNorm < minGradNorm){
+            if(verbose)
+                qDebug() << "Stopped by gradNorm" << gradNorm << "<" << minGradNorm;
+            break;
+        }
+        if(callback != nullptr)
+            callback->call(variables);
+
+        Eigen::VectorXd step=(hess.transpose() * hess).ldlt().solve(hess.transpose() * gradient);
+        variables -= step;
+    }
+
+    return variables;
+
+}
