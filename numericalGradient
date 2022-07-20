@@ -1,0 +1,19 @@
+template<typename Function>
+QVector<double> Optimization::numericalGradient(
+        Function function,
+        const QVector<double> &variableValue,
+        const double dx)
+{
+    const int nVars = variableValue.size();
+    QVector<double> res(nVars);
+    QVector<double> currentVars = variableValue;
+
+    for(int i=0;i<nVars;++i){
+        QVector<double> currentVarsPlus=currentVars;
+        QVector<double> currentVarsMinus=currentVars;
+        currentVarsPlus[i]+=dx;
+        currentVarsMinus[i]-=dx;
+        res[i]=(function(currentVarsPlus)-function(currentVarsMinus))/(2*dx);
+    }
+    return res;
+}
